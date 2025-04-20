@@ -31,7 +31,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
-    },
+    },  
     // Aplicar RolesGuard globalmente
     {
       provide: APP_GUARD,
