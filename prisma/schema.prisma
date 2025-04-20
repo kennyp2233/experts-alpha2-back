@@ -215,7 +215,7 @@ model Aerolinea {
   ciudad              String?
   pais                String?
   contacto            String?
-  id_modo             Int?
+  modo                String?  @default("") // TODO: Definir ENUM
   maestra_guias_hijas Boolean? @default(false)
   codigo              String?
   prefijo_awb         String?
@@ -236,7 +236,6 @@ model Aerolinea {
   // Relations
   documentos_base        DocumentoBase[]
   aerolineas_plantilla   AerolineasPlantilla?
-  modo                   String                  @default("AEROLINEA") // A definir
   origen1                Origen?                 @relation("OrigenAerolinea", fields: [from1], references: [id])
   destino1               Destino?                @relation("Destino1Aerolinea", fields: [to1], references: [id])
   via1                   Aerolinea?              @relation("Via1Aerolinea", fields: [by1], references: [id])
