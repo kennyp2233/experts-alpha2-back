@@ -1,0 +1,878 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ======= SISTEMA DE USUARIOS Y ROLES =======
+
+model Usuario {
+  id        String   @id @default(uuid())
+  usuario   String   @unique
+  email     String   @unique
+  pass      String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  asignacionRoles     UsuarioRol[]
+  documentosRevisados DocumentoFinca[]              @relation("RevisorDocumentos")
+  historialGuiaMadre  GuiaMadreEstado[]
+  historialDocCoord   DocumentoCoordinacionEstado[]
+  historialGuiaHija   GuiaHijaEstado[]
+  transaccionesPuntos TransaccionPuntos[]           @relation("CreadorTransaccion")
+}
+
+model Rol {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique
+  descripcion String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  usuariosRoles UsuarioRol[]
+}
+
+model UsuarioRol {
+  id         String   @id @default(uuid())
+  id_usuario String
+  id_rol     Int
+  estado     String   @default("PENDIENTE") // PENDIENTE, APROBADO, RECHAZADO
+  metadata   Json? // Para datos específicos según rol (código finca, empresa cliente, etc.)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  usuario Usuario @relation(fields: [id_usuario], references: [id], onDelete: Cascade)
+  rol     Rol     @relation(fields: [id_rol], references: [id])
+
+  @@unique([id_usuario, id_rol])
+}
+
+// ======= GESTIÓN DOCUMENTAL PARA FINCAS =======
+
+model TipoDocumentoFinca {
+  id             Int      @id @default(autoincrement())
+  nombre         String
+  descripcion    String?
+  es_obligatorio Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  documentosFinca DocumentoFinca[]
+}
+
+model DocumentoFinca {
+  id                String    @id @default(uuid())
+  id_finca          Int
+  id_tipo_documento Int
+  ruta_archivo      String?
+  nombre_archivo    String?
+  tamano_archivo    Int?
+  tipo_mime         String?
+  estado            String    @default("PENDIENTE") // PENDIENTE, APROBADO, RECHAZADO
+  comentario        String?
+  fecha_subida      DateTime  @default(now())
+  fecha_revision    DateTime?
+  id_revisor        String?
+
+  // Relations
+  finca         Finca              @relation(fields: [id_finca], references: [id])
+  tipoDocumento TipoDocumentoFinca @relation(fields: [id_tipo_documento], references: [id])
+  revisor       Usuario?           @relation("RevisorDocumentos", fields: [id_revisor], references: [id])
+}
+
+// ======= SISTEMA DE WORKFLOW =======
+
+model EstadoDocumento {
+  id                Int      @id @default(autoincrement())
+  nombre            String   @unique
+  descripcion       String?
+  tipo_entidad      String // GUIA_MADRE, DOC_COORDINACION, GUIA_HIJA
+  es_estado_inicial Boolean  @default(false)
+  es_estado_final   Boolean  @default(false)
+  color             String? // Para visualización en UI
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  transicionesOrigen  TransicionPermitida[]         @relation("OrigenTransicion")
+  transicionesDestino TransicionPermitida[]         @relation("DestinoTransicion")
+  guiasMadreActual    GuiaMadre[]                   @relation("EstadoActualGuiaMadre")
+  guiasMadreHistorial GuiaMadreEstado[]
+  docCoordActual      DocumentoCoordinacion[]       @relation("EstadoActualDocCoord")
+  docCoordHistorial   DocumentoCoordinacionEstado[]
+  guiasHijaActual     GuiaHija[]                    @relation("EstadoActualGuiaHija")
+  guiasHijaHistorial  GuiaHijaEstado[]
+}
+
+model TransicionPermitida {
+  id                  Int      @id @default(autoincrement())
+  tipo_entidad        String // GUIA_MADRE, DOC_COORDINACION, GUIA_HIJA
+  id_estado_origen    Int
+  id_estado_destino   Int
+  roles_permitidos    String // Formato JSON con array de id_rol
+  requiere_comentario Boolean  @default(false)
+  nombre_accion       String? // Nombre amigable para la UI (ej: "Aprobar", "Rechazar")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  estadoOrigen  EstadoDocumento @relation("OrigenTransicion", fields: [id_estado_origen], references: [id])
+  estadoDestino EstadoDocumento @relation("DestinoTransicion", fields: [id_estado_destino], references: [id])
+}
+
+model GuiaMadreEstado {
+  id            String   @id @default(uuid())
+  id_guia_madre Int
+  id_estado     Int
+  id_usuario    String
+  comentario    String?
+  fecha_cambio  DateTime @default(now())
+
+  // Relations
+  guiaMadre GuiaMadre       @relation(fields: [id_guia_madre], references: [id])
+  estado    EstadoDocumento @relation(fields: [id_estado], references: [id])
+  usuario   Usuario         @relation(fields: [id_usuario], references: [id])
+}
+
+model DocumentoCoordinacionEstado {
+  id                  String   @id @default(uuid())
+  id_doc_coordinacion Int
+  id_estado           Int
+  id_usuario          String
+  comentario          String?
+  fecha_cambio        DateTime @default(now())
+
+  // Relations
+  docCoordinacion DocumentoCoordinacion @relation(fields: [id_doc_coordinacion], references: [id])
+  estado          EstadoDocumento       @relation(fields: [id_estado], references: [id])
+  usuario         Usuario               @relation(fields: [id_usuario], references: [id])
+}
+
+model GuiaHijaEstado {
+  id           String   @id @default(uuid())
+  id_guia_hija Int
+  id_estado    Int
+  id_usuario   String
+  comentario   String?
+  fecha_cambio DateTime @default(now())
+
+  // Relations
+  guiaHija GuiaHija        @relation(fields: [id_guia_hija], references: [id])
+  estado   EstadoDocumento @relation(fields: [id_estado], references: [id])
+  usuario  Usuario         @relation(fields: [id_usuario], references: [id])
+}
+
+// ======= SISTEMA DE FIDELIZACIÓN =======
+
+model PuntosFidelizacion {
+  id              String   @id @default(uuid())
+  id_cliente      Int      @unique
+  puntos_actuales Int      @default(0)
+  puntos_totales  Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  cliente       Cliente             @relation(fields: [id_cliente], references: [id])
+  transacciones TransaccionPuntos[]
+}
+
+model TransaccionPuntos {
+  id                 String    @id @default(uuid())
+  id_puntos          String
+  tipo               String // GANADOS, CANJEADOS, EXPIRADOS
+  cantidad           Int
+  motivo             String
+  id_documento_ref   Int? // Referencia opcional a documento que generó puntos
+  tipo_documento_ref String? // Tipo de documento referenciado
+  id_usuario_creador String
+  fecha_transaccion  DateTime  @default(now())
+  fecha_expiracion   DateTime?
+
+  // Relations
+  puntosFidelizacion PuntosFidelizacion @relation(fields: [id_puntos], references: [id])
+  usuarioCreador     Usuario            @relation("CreadorTransaccion", fields: [id_usuario_creador], references: [id])
+}
+
+// ======= MODELOS EXISTENTES CON MODIFICACIONES =======
+
+// Maintenance models
+model Aerolinea {
+  id                  Int      @id @default(autoincrement())
+  nombre              String?
+  ci_ruc              String?
+  direccion           String?
+  telefono            String?
+  email               String?
+  ciudad              String?
+  pais                String?
+  contacto            String?
+  id_modo             Int?
+  maestra_guias_hijas Boolean? @default(false)
+  codigo              String?
+  prefijo_awb         String?
+  codigo_cae          String?
+  estado_activo       Boolean? @default(true)
+  from1               Int?
+  to1                 Int?
+  by1                 Int?
+  to2                 Int?
+  by2                 Int?
+  to3                 Int?
+  by3                 Int?
+  afiliado_cass       Boolean? @default(false)
+  guias_virtuales     Boolean? @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  documentos_base        DocumentoBase[]
+  aerolineas_plantilla   AerolineasPlantilla?
+  modo                   String                  @default("AEROLINEA") // A definir
+  origen1                Origen?                 @relation("OrigenAerolinea", fields: [from1], references: [id])
+  destino1               Destino?                @relation("Destino1Aerolinea", fields: [to1], references: [id])
+  via1                   Aerolinea?              @relation("Via1Aerolinea", fields: [by1], references: [id])
+  via1_aerolineas        Aerolinea[]             @relation("Via1Aerolinea")
+  destino2               Destino?                @relation("Destino2Aerolinea", fields: [to2], references: [id])
+  via2                   Aerolinea?              @relation("Via2Aerolinea", fields: [by2], references: [id])
+  via2_aerolineas        Aerolinea[]             @relation("Via2Aerolinea")
+  destino3               Destino?                @relation("Destino3Aerolinea", fields: [to3], references: [id])
+  via3                   Aerolinea?              @relation("Via3Aerolinea", fields: [by3], references: [id])
+  via3_aerolineas        Aerolinea[]             @relation("Via3Aerolinea")
+  documentoCoordinacion1 DocumentoCoordinacion[] @relation("AerolineaBy1")
+  documentoCoordinacion2 DocumentoCoordinacion[] @relation("AerolineaBy2")
+  documentoCoordinacion3 DocumentoCoordinacion[] @relation("AerolineaBy3")
+}
+
+model Cliente {
+  id                  Int      @id @default(autoincrement())
+  nombre              String
+  ruc                 String?
+  direccion           String?
+  telefono            String?
+  email               String?
+  ciudad              String?
+  pais                String?
+  cliente_codigo_pais String?
+  fitos_valor         Float?
+  form_a              Int?
+  transport           Int?
+  termo               Int?
+  mica                Int?
+  handling            Float?
+  cuenta_contable     String?
+  nombre_factura      String?
+  ruc_factura         String?
+  direccion_factura   String?
+  telefono_factura    String?
+  activo              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  consignatarios       Consignatario[]
+  coordinacionClientes CoordinacionClientes[]
+  puntosFidelizacion   PuntosFidelizacion?
+}
+
+model Finca {
+  id                        Int      @id @default(autoincrement())
+  nombre_finca              String
+  tag                       String
+  ruc_finca                 String?
+  tipo_documento            String
+  genera_guias_certificadas Boolean?
+  i_general_telefono        String?
+  i_general_email           String?
+  i_general_ciudad          String?
+  i_general_provincia       String?
+  i_general_pais            String?
+  i_general_cod_sesa        String?
+  i_general_cod_pais        String?
+  a_nombre                  String?
+  a_codigo                  String?
+  a_direccion               String?
+  activo                    Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  fincas_choferes  FincaChofer[]
+  fincas_productos FincaProducto[]
+  guias_hijas      GuiaHija[]
+  documentos       DocumentoFinca[]
+}
+
+// Document models
+model DocumentoBase {
+  id            Int       @id @default(autoincrement())
+  fecha         DateTime?
+  id_aerolinea  Int?
+  id_referencia Int?
+  id_stock      String? // TODO: ENUM
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  aerolinea   Aerolinea?   @relation(fields: [id_aerolinea], references: [id])
+  referencia  AgenciaIata? @relation(fields: [id_referencia], references: [id])
+  guias_madre GuiaMadre[]
+}
+
+model GuiaMadre {
+  id                Int       @id @default(autoincrement())
+  prefijo           Int
+  secuencial        Int
+  id_documento_base Int
+  id_estado_actual  Int
+  prestamo          Boolean?  @default(false)
+  observaciones     String?
+  fecha_prestamo    DateTime?
+  devolucion        Boolean?  @default(false)
+  fecha_devolucion  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  documento_base         DocumentoBase          @relation(fields: [id_documento_base], references: [id])
+  estadoActual           EstadoDocumento        @relation("EstadoActualGuiaMadre", fields: [id_estado_actual], references: [id])
+  historialEstados       GuiaMadreEstado[]
+  documento_coordinacion DocumentoCoordinacion?
+  guias_hijas            GuiaHija[]
+}
+
+model DocumentoCoordinacion {
+  id                    Int      @id @default(autoincrement())
+  id_guia_madre         Int      @unique
+  id_consignatario      Int
+  id_producto           Int
+  id_agencia_iata       Int
+  id_destino_awb        Int
+  id_destino_final_docs Int
+  id_estado_actual      Int
+  pago                  String   @default("PREPAID")
+  fecha_vuelo           DateTime
+  fecha_asignacion      DateTime
+  from1                 Int?
+  to1                   Int?
+  by1                   Int?
+  to2                   Int?
+  by2                   Int?
+  to3                   Int?
+  by3                   Int?
+  costo_guia_valor      Float?
+  combustible_valor     Float?
+  seguridad_valor       Float?
+  aux_calculo_valor     Float?
+  otros_valor           Float?
+  aux1_valor            Float?
+  aux2_valor            Float?
+  tarifa_rate           Float?
+  char_weight           Float?
+  form_a                Int?
+  transport             Int?
+  pca                   Float?
+  fitos                 Int?
+  termografo            Int?
+  mca                   Int?
+  tax                   Int?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  guia_madre            GuiaMadre                     @relation(fields: [id_guia_madre], references: [id])
+  consignatario         Consignatario                 @relation(fields: [id_consignatario], references: [id])
+  producto              Producto                      @relation(fields: [id_producto], references: [id])
+  agencia_iata          AgenciaIata                   @relation(fields: [id_agencia_iata], references: [id])
+  destino_awb           Destino                       @relation("DestinoAwb", fields: [id_destino_awb], references: [id])
+  destino_final_docs    Destino                       @relation("DestinoFinalDocs", fields: [id_destino_final_docs], references: [id])
+  estadoActual          EstadoDocumento               @relation("EstadoActualDocCoord", fields: [id_estado_actual], references: [id])
+  historialEstados      DocumentoCoordinacionEstado[]
+  origen_from1          Origen?                       @relation("DocumentoCoordOrigen", fields: [from1], references: [id])
+  destino_to1           Destino?                      @relation("DocumentoCoordDestino1", fields: [to1], references: [id])
+  aerolinea_by1         Aerolinea?                    @relation("AerolineaBy1", fields: [by1], references: [id])
+  destino_to2           Destino?                      @relation("DocumentoCoordDestino2", fields: [to2], references: [id])
+  aerolinea_by2         Aerolinea?                    @relation("AerolineaBy2", fields: [by2], references: [id])
+  destino_to3           Destino?                      @relation("DocumentoCoordDestino3", fields: [to3], references: [id])
+  aerolinea_by3         Aerolinea?                    @relation("AerolineaBy3", fields: [by3], references: [id])
+  coordinacion_clientes CoordinacionClientes[]
+  guias_hijas           GuiaHija[]
+}
+
+model GuiaHija {
+  id                        Int      @id @default(autoincrement())
+  id_documento_coordinacion Int
+  id_guia_madre             Int
+  id_finca                  Int
+  id_producto               Int?
+  id_estado_actual          Int
+  numero_guia_hija          String
+  anio                      Int
+  secuencial                Int
+  fulls                     Int?     @default(0)
+  pcs                       Int?     @default(0)
+  kgs                       Float?   @default(0)
+  stems                     Int?     @default(0)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  // Relations
+  documento_coordinacion DocumentoCoordinacion @relation(fields: [id_documento_coordinacion], references: [id])
+  guia_madre             GuiaMadre             @relation(fields: [id_guia_madre], references: [id])
+  finca                  Finca                 @relation(fields: [id_finca], references: [id])
+  producto               Producto?             @relation(fields: [id_producto], references: [id])
+  estadoActual           EstadoDocumento       @relation("EstadoActualGuiaHija", fields: [id_estado_actual], references: [id])
+  historialEstados       GuiaHijaEstado[]
+}
+
+// Mantener el resto de modelos existentes (Origenes, Destinos, etc.)
+// ...
+
+model AerolineasPlantilla {
+  id_aerolinea                Int     @id
+  costo_guia_abrv             String?
+  combustible_abrv            String?
+  seguridad_abrv              String?
+  aux_calculo_abrv            String?
+  iva_abrv                    String?
+  otros_abrv                  String?
+  aux1_abrv                   String?
+  aux2_abrv                   String?
+  costo_guia_valor            Float?  @default(0)
+  combustible_valor           Float?  @default(0)
+  seguridad_valor             Float?  @default(0)
+  aux_calculo_valor           Float?  @default(0)
+  otros_valor                 Float?  @default(0)
+  aux1_valor                  Float?  @default(0)
+  aux2_valor                  Float?  @default(0)
+  plantilla_guia_madre        String?
+  plantilla_formato_aerolinea String?
+  plantilla_reservas          String?
+  tarifa_rate                 Float?  @default(0)
+  pca                         Float?  @default(0)
+  combustible_mult            String? // TODO: ENUM    
+  seguridad_mult              String? // TODO: ENUM
+  aux_calc_mult               String? // TODO: ENUM
+  iva_valor                   Float?  @default(0)
+
+  // Relations
+  aerolinea Aerolinea @relation(fields: [id_aerolinea], references: [id], onDelete: Cascade)
+}
+
+model Pais {
+  id_pais     Int    @id @default(autoincrement())
+  siglas_pais String @unique
+  nombre      String
+  pais_id     Int?
+  id_acuerdo  Int?
+
+  // Relations
+  acuerdos_arancelario AcuerdoArancelario? @relation(fields: [id_acuerdo], references: [id_acuerdo])
+  origenes             Origen[]
+  destinos             Destino[]
+}
+
+model AcuerdoArancelario {
+  id_acuerdo Int    @id @default(autoincrement())
+  nombre     String
+
+  // Relations
+  paises Pais[]
+}
+
+model Origen {
+  id            Int     @id @default(autoincrement())
+  tag           String?
+  nombre        String?
+  aeropuerto    String?
+  id_pais       Int?
+  id_cae_aduana Int?
+
+  // Relations
+  pais            Pais?                   @relation(fields: [id_pais], references: [id_pais])
+  cae_aduana      CaeAduana?              @relation(fields: [id_cae_aduana], references: [id_cae_aduana])
+  aerolineas      Aerolinea[]             @relation("OrigenAerolinea")
+  documentoCoords DocumentoCoordinacion[] @relation("DocumentoCoordOrigen")
+}
+
+model CaeAduana {
+  id_cae_aduana Int     @id @default(autoincrement())
+  codigo_aduana Int?
+  nombre        String?
+
+  // Relations
+  origenes Origen[]
+}
+
+model Destino {
+  id           Int      @id @default(autoincrement())
+  tag          String?
+  nombre       String?
+  aeropuerto   String?
+  id_pais      Int?
+  sesa_id      String?
+  leyenda_fito String?
+  cobro_fitos  Boolean? @default(false)
+
+  // Relations
+  pais                   Pais?                   @relation(fields: [id_pais], references: [id_pais])
+  aerolineas1            Aerolinea[]             @relation("Destino1Aerolinea")
+  aerolineas2            Aerolinea[]             @relation("Destino2Aerolinea")
+  aerolineas3            Aerolinea[]             @relation("Destino3Aerolinea")
+  consignatario_guia_m   ConsignatarioGuiaM[]
+  documentoAwb           DocumentoCoordinacion[] @relation("DestinoAwb")
+  documentoFinalDocs     DocumentoCoordinacion[] @relation("DestinoFinalDocs")
+  documentoCoordDestino1 DocumentoCoordinacion[] @relation("DocumentoCoordDestino1")
+  documentoCoordDestino2 DocumentoCoordinacion[] @relation("DocumentoCoordDestino2")
+  documentoCoordDestino3 DocumentoCoordinacion[] @relation("DocumentoCoordDestino3")
+}
+
+model Embarcador {
+  id                     Int      @id @default(autoincrement())
+  nombre                 String
+  ci                     String?
+  direccion              String?
+  telefono               String?
+  email                  String?
+  ciudad                 String?
+  provincia              String?
+  pais                   String?
+  embarcador_codigo_pais String?
+  handling               Float?
+  estado                 Boolean? @default(true)
+
+  // Relations
+  consignatarios Consignatario[]
+}
+
+model Consignatario {
+  id            Int     @id @default(autoincrement())
+  nombre        String
+  ruc           String?
+  direccion     String?
+  id_embarcador Int
+  id_cliente    Int
+  telefono      String?
+  email         String?
+  ciudad        String?
+  pais          String?
+
+  // Relations
+  embarcador             Embarcador                @relation(fields: [id_embarcador], references: [id])
+  cliente                Cliente                   @relation(fields: [id_cliente], references: [id])
+  cae_sice               ConsignatarioCaeSice?
+  facturacion            ConsignatarioFacturacion?
+  fito                   ConsignatarioFito?
+  guia_h                 ConsignatarioGuiaH?
+  guia_m                 ConsignatarioGuiaM?
+  transmision            ConsignatarioTransmision?
+  documentosCoordinacion DocumentoCoordinacion[]
+}
+
+model ConsignatarioCaeSice {
+  id_consignatario         Int     @id
+  consignee_nombre         String?
+  consignee_direccion      String?
+  consignee_documento      String?
+  consignee_siglas_pais    String?
+  notify_nombre            String?
+  notify_direccion         String?
+  notify_documento         String?
+  notify_siglas_pais       String?
+  hawb_nombre              String?
+  hawb_direccion           String?
+  hawb_documento           String?
+  hawb_siglas_pais         String?
+  consignee_tipo_documento String? // Tipo de documento del consignatario
+  notify_tipo_documento    String? // Tipo de documento del notify
+  hawb_tipo_documento      String? // Tipo de documento del hawb
+
+  // Relations
+  consignatario Consignatario @relation(fields: [id_consignatario], references: [id], onDelete: Cascade)
+}
+
+model ConsignatarioFacturacion {
+  id_consignatario  Int     @id
+  factura_nombre    String?
+  factura_ruc       String?
+  factura_direccion String?
+  factura_telefono  String?
+
+  // Relations
+  consignatario Consignatario @relation(fields: [id_consignatario], references: [id], onDelete: Cascade)
+}
+
+model ConsignatarioFito {
+  id_consignatario   Int     @id
+  fito_declared_name String?
+  fito_forma_a       String?
+  fito_nombre        String?
+  fito_direccion     String?
+  fito_pais          String?
+
+  // Relations
+  consignatario Consignatario @relation(fields: [id_consignatario], references: [id], onDelete: Cascade)
+}
+
+model ConsignatarioGuiaH {
+  id_consignatario   Int     @id
+  guia_h_consignee   String?
+  guia_h_name_adress String?
+  guia_h_notify      String?
+
+  // Relations
+  consignatario Consignatario @relation(fields: [id_consignatario], references: [id], onDelete: Cascade)
+}
+
+model ConsignatarioGuiaM {
+  id_consignatario    Int     @id
+  id_destino          Int?
+  guia_m_consignee    String?
+  guia_m_name_address String?
+  guia_m_notify       String?
+
+  // Relations
+  consignatario Consignatario @relation(fields: [id_consignatario], references: [id], onDelete: Cascade)
+  destino       Destino?      @relation(fields: [id_destino], references: [id])
+}
+
+model ConsignatarioTransmision {
+  id_consignatario          Int     @id
+  consignee_nombre_trans    String?
+  consignee_direccion_trans String?
+  consignee_ciudad_trans    String?
+  consignee_provincia_trans String?
+  consignee_pais_trans      String?
+  consignee_eueori_trans    String?
+  notify_nombre_trans       String?
+  notify_direccion_trans    String?
+  notify_ciudad_trans       String?
+  notify_provincia_trans    String?
+  notify_pais_trans         String?
+  notify_eueori_trans       String?
+  hawb_nombre_trans         String?
+  hawb_direccion_trans      String?
+  hawb_ciudad_trans         String?
+  hawb_provincia_trans      String?
+  hawb_pais_trans           String?
+  hawb_eueori_trans         String?
+
+  // Relations
+  consignatario Consignatario @relation(fields: [id_consignatario], references: [id], onDelete: Cascade)
+}
+
+model FincaChofer {
+  id_fincas_choferes Int @id @default(autoincrement())
+  id_finca           Int
+  id_chofer          Int
+
+  // Relations
+  finca  Finca  @relation(fields: [id_finca], references: [id])
+  chofer Chofer @relation(fields: [id_chofer], references: [id])
+}
+
+model FincaProducto {
+  id_fincas_productos Int @id @default(autoincrement())
+  id_finca            Int
+  id_producto         Int
+
+  // Relations
+  finca    Finca    @relation(fields: [id_finca], references: [id])
+  producto Producto @relation(fields: [id_producto], references: [id])
+}
+
+model Chofer {
+  id            Int      @id @default(autoincrement())
+  nombre        String
+  ruc           String
+  placas_camion String?
+  telefono      String?
+  camion        String?
+  estado        Boolean? @default(true)
+
+  // Relations
+  fincas_choferes FincaChofer[]
+}
+
+model Producto {
+  id              Int      @id @default(autoincrement())
+  tag             String?
+  nombre          String?
+  descripcion     String?
+  nombre_botanico String?
+  especie         String?
+  id_medida       Int?
+  precio_unitario Float?
+  estado          Boolean?
+  id_opcion       Int?
+  stems_por_full  Int?
+  id_sesa         Int?
+
+  // Relations
+  medida                 String
+  opcion                 String
+  aranceles              ProductosAranceles[]
+  producto_compuesto     ProductosCompuesto[]
+  mipro                  ProductosMiPro[]
+  fincas_productos       FincaProducto[]
+  documentosCoordinacion DocumentoCoordinacion[]
+  guiash                 GuiaHija[]
+}
+
+model ProductosAranceles {
+  id                Int     @id @default(autoincrement())
+  id_producto       Int
+  aranceles_destino String?
+  aranceles_codigo  String?
+
+  // Relations
+  producto Producto @relation(fields: [id_producto], references: [id], onDelete: Cascade)
+}
+
+model ProductosCompuesto {
+  id          Int     @id @default(autoincrement())
+  id_producto Int
+  destino     String?
+  declaracion String?
+
+  // Relations
+  producto Producto @relation(fields: [id_producto], references: [id], onDelete: Cascade)
+}
+
+model ProductosMiPro {
+  id          Int     @id @default(autoincrement())
+  id_producto Int
+  acuerdo     String?
+  djocode     String?
+  tariffcode  String?
+
+  // Relations
+  producto Producto @relation(fields: [id_producto], references: [id], onDelete: Cascade)
+}
+
+model TipoEmbarque {
+  id                  Int     @id @default(autoincrement())
+  tag                 String?
+  nombre              String?
+  id_tipo_carga       Int?
+  id_tipo_embalaje    Int?
+  regimen             String?
+  mercancia           String?
+  harmonised_comidity String?
+
+  // Relations
+  carga    TipoCarga?    @relation(fields: [id_tipo_carga], references: [id])
+  embalaje TipoEmbalaje? @relation(fields: [id_tipo_embalaje], references: [id])
+}
+
+// Catalog models
+model TipoCarga {
+  id     Int    @id @default(autoincrement())
+  nombre String
+
+  // Relations
+  tipos_embarque TipoEmbarque[]
+}
+
+model TipoEmbalaje {
+  id     Int    @id @default(autoincrement())
+  nombre String
+
+  // Relations
+  tipos_embarque TipoEmbarque[]
+}
+
+model AgenciaIata {
+  id                  Int      @id @default(autoincrement())
+  alias_shipper       String   @unique
+  nombre_shipper      String?
+  ruc_shipper         String?
+  direccion_shipper   String?
+  telefono_shipper    String?
+  ciudad_shipper      String?
+  pais_shipper        String?
+  nombre_carrier      String?
+  ruc_carrier         String?
+  direccion_carrier   String?
+  telefono_carrier    String?
+  ciudad_carrier      String?
+  pais_carrier        String?
+  iata_code_carrier   String?
+  registro_exportador String?
+  codigo_operador     String?
+  codigo_consolidador String?
+  comision            Float?
+  estado_agencia_iata Boolean? @default(true)
+
+  // Relations
+  documentos_base        DocumentoBase[]
+  documento_coordinacion DocumentoCoordinacion[]
+}
+
+model SubAgencia {
+  id            Int      @id @default(autoincrement())
+  nombre        String
+  ci_ruc        String?
+  direccion     String?
+  telefono      String?
+  email         String?
+  ciudad        String?
+  pais          String?
+  provincia     String?
+  representante String?
+  comision      Float?
+  estado        Boolean? @default(true)
+}
+
+model FuncionarioAgrocalidad {
+  id       Int      @id @default(autoincrement())
+  nombre   String
+  telefono String?
+  email    String?
+  estado   Boolean? @default(true)
+}
+
+model Bodeguero {
+  id           Int      @id @default(autoincrement())
+  nombre       String
+  ci           String
+  clave_bodega String
+  estado       Boolean? @default(true)
+}
+
+model ValoresAgencia {
+  id     Int     @id @default(autoincrement())
+  nombre String?
+  valor  Float?
+}
+
+model CoordinacionClientes {
+  id_coordinacion Int
+  tipo            String @default("CLIENTE") // Tipo de entidad: "CLIENTE" o "CONSIGNATARIO"
+  id_entidad      Int // ID del cliente o consignatario
+
+  // Relations
+  documento_coordinacion DocumentoCoordinacion @relation(fields: [id_coordinacion], references: [id], onDelete: Cascade)
+  Cliente                Cliente?              @relation(fields: [clienteId_clientes], references: [id])
+  clienteId_clientes     Int?
+
+  @@id([id_coordinacion, tipo, id_entidad])
+}
+
+// ======= DATOS INICIALES PARA WORKFLOW =======
+
+// Para los estados de GuiaMadre
+// CREATED -> IN_PROCESS -> COMPLETED -> CLOSED
+
+// Para los estados de DocumentoCoordinacion
+// DRAFT -> COORDINATING -> COORDINATED -> PROCESSING -> READY -> CUT -> COMPLETED -> CANCELLED
+
+// Para los estados de GuiaHija
+// REGISTERED -> CONFIRMED -> READY -> PROCESSED -> SHIPPED -> CANCELLED
