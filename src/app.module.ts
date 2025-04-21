@@ -1,3 +1,4 @@
+// src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -7,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { DocumentsModule } from './documents/documents.module';
+import { MasterDataModule } from './master-data/master-data.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 
@@ -23,15 +25,15 @@ import { RolesGuard } from './auth/guards/roles.guard';
     UsersModule,
     RolesModule,
     DocumentsModule,
+    MasterDataModule,
   ],
   controllers: [],
   providers: [
-
     // Aplicar JwtAuthGuard globalmente (excepto en rutas con @Public())
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
-    },  
+    },
     // Aplicar RolesGuard globalmente
     {
       provide: APP_GUARD,

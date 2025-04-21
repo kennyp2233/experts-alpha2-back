@@ -1,6 +1,7 @@
+// src/master-data/paises/paises.module.ts
 import { Module } from '@nestjs/common';
-import { PaisesController } from './paises.service';
-import { PaisesService } from './paises.controller';
+import { PaisesController } from './paises.controller';
+import { PaisesService } from './paises.service';
 
 @Module({
     controllers: [PaisesController],
