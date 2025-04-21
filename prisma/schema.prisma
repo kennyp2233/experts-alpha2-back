@@ -278,7 +278,6 @@ model Cliente {
 
   // Relations
   consignatarios       Consignatario[]
-  coordinacionClientes CoordinacionClientes[]
   puntosFidelizacion   PuntosFidelizacion?
 }
 
@@ -350,7 +349,6 @@ model GuiaMadre {
 model DocumentoCoordinacion {
   id                    Int      @id @default(autoincrement())
   id_guia_madre         Int      @unique
-  id_consignatario      Int
   id_producto           Int
   id_agencia_iata       Int
   id_destino_awb        Int
@@ -387,7 +385,6 @@ model DocumentoCoordinacion {
 
   // Relations
   guia_madre            GuiaMadre                     @relation(fields: [id_guia_madre], references: [id])
-  consignatario         Consignatario                 @relation(fields: [id_consignatario], references: [id])
   producto              Producto                      @relation(fields: [id_producto], references: [id])
   agencia_iata          AgenciaIata                   @relation(fields: [id_agencia_iata], references: [id])
   destino_awb           Destino                       @relation("DestinoAwb", fields: [id_destino_awb], references: [id])
@@ -401,8 +398,8 @@ model DocumentoCoordinacion {
   aerolinea_by2         Aerolinea?                    @relation("AerolineaBy2", fields: [by2], references: [id])
   destino_to3           Destino?                      @relation("DocumentoCoordDestino3", fields: [to3], references: [id])
   aerolinea_by3         Aerolinea?                    @relation("AerolineaBy3", fields: [by3], references: [id])
-  coordinacion_clientes CoordinacionClientes[]
   guias_hijas           GuiaHija[]
+  DocumentoConsignatario DocumentoConsignatario[]
 }
 
 model GuiaHija {
@@ -572,7 +569,7 @@ model Consignatario {
   guia_h                 ConsignatarioGuiaH?
   guia_m                 ConsignatarioGuiaM?
   transmision            ConsignatarioTransmision?
-  documentosCoordinacion DocumentoCoordinacion[]
+  DocumentoConsignatario DocumentoConsignatario[]
 }
 
 model ConsignatarioCaeSice {
@@ -852,17 +849,28 @@ model ValoresAgencia {
   valor  Float?
 }
 
-model CoordinacionClientes {
-  id_coordinacion Int
-  tipo            String @default("CLIENTE") // Tipo de entidad: "CLIENTE" o "CONSIGNATARIO"
-  id_entidad      Int // ID del cliente o consignatario
+model DocumentoConsignatario {
+  id_documento_coordinacion Int
+  id_consignatario          Int
+  es_principal              Boolean @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   // Relations
-  documento_coordinacion DocumentoCoordinacion @relation(fields: [id_coordinacion], references: [id], onDelete: Cascade)
-  Cliente                Cliente?              @relation(fields: [clienteId_clientes], references: [id])
-  clienteId_clientes     Int?
+  documento_coordinacion DocumentoCoordinacion @relation(fields: [id_documento_coordinacion], references: [id], onDelete: Cascade)
+  consignatario         Consignatario          @relation(fields: [id_consignatario], references: [id])
 
-  @@id([id_coordinacion, tipo, id_entidad])
+  @@id([id_documento_coordinacion, id_consignatario])
+}
+
+model HorarioOperativo {
+    id          Int       @id @default(autoincrement())
+    dia_semana  Int       // 0-6, donde 0 es domingo
+    hora_inicio String    // formato HH:MM
+    hora_fin    String    // formato HH:MM
+    activo      Boolean   @default(true)
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
 }
 
 // ======= DATOS INICIALES PARA WORKFLOW =======
