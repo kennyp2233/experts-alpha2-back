@@ -12,7 +12,7 @@ import {
     Request,
     ParseIntPipe
 } from '@nestjs/common';
-import { GuiasHijasService } from '../services/guias-hijas.service';
+import { GuiasHijasService } from '../services/guia-hija/guias-hijas.service';
 import { AsignarGuiaHijaDto } from '../dto/guia-hija/asignar-guia-hija.dto';
 import { UpdateGuiaHijaDto } from '../dto/guia-hija/update-guia-hija.dto';
 import { CambioEstadoDto } from '../dto/guia-madre/cambio-estado.dto';

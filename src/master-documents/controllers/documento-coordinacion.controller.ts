@@ -13,7 +13,7 @@ import {
     ParseIntPipe,
     NotFoundException
 } from '@nestjs/common';
-import { DocumentoCoordinacionService } from '../services/documento-coordinacion.service';
+import { DocumentoCoordinacionService } from '../services/documento-coordinacion/documento-coordinacion.service';
 import { CreateDocCoordDto } from '../dto/documento-coordinacion/create-doc-coord.dto';
 import { UpdateDocCoordDto } from '../dto/documento-coordinacion/update-doc-coord.dto';
 import { AsignarConsignatarioDto } from '../dto/documento-coordinacion/asignar-consignatario.dto';

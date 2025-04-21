@@ -11,7 +11,7 @@ import {
     Request,
     ParseIntPipe
 } from '@nestjs/common';
-import { GuiasMadreService } from '../services/guias-madre.service';
+import { GuiasMadreService } from '../services/guia-madre/guias-madre.service';
 import { CreateGuiaMadreDto } from '../dto/guia-madre/create-guia-madre.dto';
 import { UpdateGuiaMadreDto } from '../dto/guia-madre/update-guia-madre.dto';
 import { CambioEstadoDto } from '../dto/guia-madre/cambio-estado.dto';
