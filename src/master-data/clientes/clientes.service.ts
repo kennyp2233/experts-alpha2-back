@@ -52,22 +52,7 @@ export class ClientesService {
                         embarcador: true,
                     },
                 },
-                coordinacionClientes: {
-                    include: {
-                        documento_coordinacion: {
-                            select: {
-                                id: true,
-                                fecha_vuelo: true,
-                                guia_madre: {
-                                    select: {
-                                        prefijo: true,
-                                        secuencial: true,
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
+
             },
         });
 

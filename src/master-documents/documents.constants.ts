@@ -68,9 +68,32 @@ export const PESO_ESTANDAR = {
     [TipoCaja.SIXTH]: 4.167,  // Un sexto
 };
 
-// Formato de número de guía hija
-export const FORMATO_GUIA_HIJA = 'AAAANNNN'; // Año (4 dígitos) + Secuencial (4 dígitos)
+// Formatos de número de guía hija disponibles
+export enum FormatoGuiaHija {
+    ANNO_SECUENCIAL = 'AAAANNNN',      // Año (4 dígitos) + Secuencial (4 dígitos)
+    PREFIJO_SECUENCIAL = 'PREFNNNN',   // Prefijo personalizado + Secuencial (4 dígitos)
+    SECUENCIAL_SIMPLE = 'NNNNNNNN',    // Solo secuencial (8 dígitos)
+    PERSONALIZADO = 'CUSTOM'           // Formato totalmente personalizado
+}
+
+// Formato de número de guía hija por defecto
+export const FORMATO_GUIA_HIJA = FormatoGuiaHija.ANNO_SECUENCIAL;
+
+// Prefijo por defecto para guías hijas (para formato PREFIJO_SECUENCIAL)
+export const PREFIJO_GUIA_HIJA_DEFAULT = 'EXP';
 
 // Incremento para secuenciales de guías madre
 export const INCREMENTO_SECUENCIAL = 11;
 export const INCREMENTO_ESPECIAL_6 = 4; // Incremento especial cuando el último dígito es 6
+
+// Reglas para asignación de guías hijas
+export enum ReglaAsignacionGuiaHija {
+    FINCA_UNICA = 'FINCA_UNICA',                    // Una guía única por finca
+    FINCA_GUIA_MADRE = 'FINCA_GUIA_MADRE',          // Una guía por combinación finca-guía madre
+    FINCA_MARCACION = 'FINCA_MARCACION',            // Una guía por combinación finca-marcación
+    FINCA_GUIA_MADRE_MARCACION = 'FINCA_GUIA_MADRE_MARCACION', // Una guía por combinación finca-guía madre-marcación
+    FINCA_GUIA_MADRE_MARCACION_PRODUCTO = 'FINCA_GUIA_MADRE_MARCACION_PRODUCTO' // Una guía por combinación finca-guía madre-marcación-producto
+}
+
+// Regla de asignación de guías hijas por defecto
+export const REGLA_ASIGNACION_DEFAULT = ReglaAsignacionGuiaHija.FINCA_GUIA_MADRE_MARCACION_PRODUCTO;

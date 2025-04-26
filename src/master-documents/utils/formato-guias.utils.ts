@@ -10,54 +10,119 @@ import {
 export class FormatoGuiasUtils {
     /**
      * Formatea el número de guía hija según el formato establecido
-     * @param anio Año de la guía
+     * Soporta tanto el formato numérico estándar como formatos personalizados
+     * 
+     * @param anio Año de la guía o prefijo personalizado
      * @param secuencial Número secuencial de la guía
+     * @param formato Formato opcional para personalizar la guía (por defecto: año + secuencial)
      * @returns Número de guía formateado
      */
-    static formatearNumeroGuiaHija(anio: number, secuencial: number): string {
+    static formatearNumeroGuiaHija(anio: number | string, secuencial: number, formato?: string): string {
+        // Si se proporciona un formato personalizado, usarlo
+        if (formato) {
+            // Reemplazar placeholders en el formato
+            return formato
+                .replace('AAAA', typeof anio === 'number' ? anio.toString() : anio)
+                .replace('NNNN', secuencial.toString().padStart(4, '0'));
+        }
+
+        // Formato por defecto: año + secuencial con padding (ej: 20250001)
         return `${anio}${secuencial.toString().padStart(4, '0')}`;
     }
 
     /**
-     * Verifica si un número de guía hija tiene el formato correcto
+     * Crea un formato de guía hija personalizado
+     * Permite crear formatos alfanuméricos como "EXP0001" o cualquier otro formato requerido
+     * 
+     * @param prefijo Prefijo para la guía (ej: "EXP")
+     * @param secuencial Número secuencial
+     * @param digitosSecuencial Número de dígitos para el secuencial (padding)
+     * @returns Número de guía formateado
+     */
+    static crearGuiaPersonalizada(prefijo: string, secuencial: number, digitosSecuencial: number = 4): string {
+        return `${prefijo}${secuencial.toString().padStart(digitosSecuencial, '0')}`;
+    }
+
+    /**
+     * Verifica si un número de guía hija tiene un formato válido
      * @param numeroGuia Número de guía a verificar
+     * @param formatoEsperado Formato esperado (regex o patrón explícito)
      * @returns True si el formato es válido, false si no
      */
-    static validarFormatoGuiaHija(numeroGuia: string): boolean {
-        // El formato esperado es AAAANNNN (año de 4 dígitos + secuencial de 4 dígitos)
-        const regex = /^\d{8}$/;
-        if (!regex.test(numeroGuia)) {
-            return false;
+    static validarFormatoGuiaHija(numeroGuia: string, formatoEsperado?: string | RegExp): boolean {
+        // Si no se proporciona un formato específico, verificar que sea un valor válido
+        if (!formatoEsperado) {
+            return Boolean(numeroGuia && numeroGuia.trim().length > 0);
         }
 
-        // Extraer año y secuencial
-        const anio = parseInt(numeroGuia.substring(0, 4));
-        const secuencial = parseInt(numeroGuia.substring(4));
-
-        // Validar que el año sea razonable (no futuro y no muy antiguo)
-        const anioActual = new Date().getFullYear();
-        if (anio < 2000 || anio > anioActual + 1) {
-            return false;
+        // Si es una expresión regular
+        if (formatoEsperado instanceof RegExp) {
+            return formatoEsperado.test(numeroGuia);
         }
 
-        // Validar que el secuencial sea positivo
-        return secuencial > 0;
+        // Si es un formato específico (como AAAANNNN)
+        const formatoRegex = this.convertirFormatoARegex(formatoEsperado);
+        return formatoRegex.test(numeroGuia);
+    }
+
+    /**
+     * Convierte un formato de guía (como AAAANNNN) a una expresión regular para validación
+     * @param formato Formato de guía
+     * @returns Expresión regular para validar el formato
+     */
+    private static convertirFormatoARegex(formato: string): RegExp {
+        // Reemplazar placeholders con patrones regex
+        const patronRegex = formato
+            .replace('AAAA', '\\d{4}')   // 4 dígitos para el año
+            .replace('NNNN', '\\d{4}')   // 4 dígitos para el secuencial
+            .replace('NNN', '\\d{3}')    // 3 dígitos
+            .replace('NN', '\\d{2}')     // 2 dígitos
+            .replace('N', '\\d');        // 1 dígito
+
+        return new RegExp(`^${patronRegex}$`);
     }
 
     /**
      * Parse un número de guía hija en sus componentes
      * @param numeroGuia Número de guía a analizar
-     * @returns Objeto con año y secuencial
+     * @param formato Formato de la guía (por defecto: AAAANNNN)
+     * @returns Objeto con componentes extraídos según el formato
      */
-    static parseGuiaHija(numeroGuia: string): { anio: number, secuencial: number } | null {
-        if (!this.validarFormatoGuiaHija(numeroGuia)) {
+    static parseGuiaHija(numeroGuia: string, formato: string = 'AAAANNNN'): any {
+        if (!this.validarFormatoGuiaHija(numeroGuia, formato)) {
             return null;
         }
 
-        return {
-            anio: parseInt(numeroGuia.substring(0, 4)),
-            secuencial: parseInt(numeroGuia.substring(4))
-        };
+        // Formato estándar AAAANNNN (año y secuencial)
+        if (formato === 'AAAANNNN') {
+            return {
+                anio: parseInt(numeroGuia.substring(0, 4)),
+                secuencial: parseInt(numeroGuia.substring(4))
+            };
+        }
+
+        // Para formatos personalizados, extraer según posición
+        const result: any = {};
+        let pos = 0;
+
+        if (formato.includes('AAAA')) {
+            const startPos = formato.indexOf('AAAA');
+            result.anio = parseInt(numeroGuia.substring(startPos, startPos + 4));
+            pos = startPos + 4;
+        }
+
+        if (formato.includes('NNNN')) {
+            const startPos = formato.indexOf('NNNN');
+            result.secuencial = parseInt(numeroGuia.substring(startPos, startPos + 4));
+        }
+
+        // Extraer prefijos alfanuméricos si existen
+        const prefixMatch = formato.match(/^[A-Z]+/);
+        if (prefixMatch) {
+            result.prefijo = numeroGuia.substring(0, prefixMatch[0].length);
+        }
+
+        return result;
     }
 
     /**

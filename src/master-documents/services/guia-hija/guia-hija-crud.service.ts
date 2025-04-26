@@ -6,7 +6,15 @@ import { DocumentoCoordinacionRepository } from '../../repositories/documento-co
 import { AsignarGuiaHijaDto } from '../../dto/guia-hija/asignar-guia-hija.dto';
 import { UpdateGuiaHijaDto } from '../../dto/guia-hija/update-guia-hija.dto';
 import { FormatoGuiasUtils } from '../../utils/formato-guias.utils';
-import { WorkflowEvents, EstadoDocCoord } from '../../documents.constants';
+import {
+    WorkflowEvents,
+    EstadoDocCoord,
+    FormatoGuiaHija,
+    FORMATO_GUIA_HIJA,
+    ReglaAsignacionGuiaHija,
+    REGLA_ASIGNACION_DEFAULT
+} from '../../documents.constants';
+import { GuiaHijaNumeracionService } from './guia-hija-numeracion.service';
 
 @Injectable()
 export class GuiaHijaCrudService {
@@ -15,6 +23,7 @@ export class GuiaHijaCrudService {
         private guiaHijaRepository: GuiaHijaRepository,
         private docCoordinacionRepository: DocumentoCoordinacionRepository,
         private eventEmitter: EventEmitter2,
+        private numeracionService: GuiaHijaNumeracionService,
     ) { }
 
     /**
@@ -86,10 +95,15 @@ export class GuiaHijaCrudService {
 
     /**
      * Asigna una guía hija a un documento de coordinación para una finca específica
+     * siguiendo las reglas de negocio para la numeración:
+     * 1. Si es la primera guía para una finca, se crea un nuevo secuencial
+     * 2. Si la finca ya tiene una guía para la misma guía madre, se usa la misma numeración
+     * 3. Si la finca tiene guías para otras guías madre, se asigna el siguiente secuencial disponible
+     * 4. Se debe considerar también la marcación (consignatario) y el producto
      */
     async asignarGuiaHija(id_documento_coordinacion: number, id_finca: number, asignarGuiaHijaDto?: AsignarGuiaHijaDto) {
         return this.prisma.$transaction(async (prisma) => {
-            // Obtener documento coordinación
+            // Obtener documento coordinación con la información completa
             const docCoordinacion = await this.docCoordinacionRepository.findById(id_documento_coordinacion);
 
             if (!docCoordinacion) {
@@ -97,40 +111,70 @@ export class GuiaHijaCrudService {
             }
 
             const id_guia_madre = docCoordinacion.guia_madre.id;
+            const id_producto = asignarGuiaHijaDto?.id_producto || docCoordinacion.id_producto;
 
-            // Verificar existencia previa
-            const guiaHijaExistente = await this.guiaHijaRepository.findByFincaAndGuiaMadre(id_finca, id_guia_madre);
+            // Obtener información del consignatario principal
+            const consignatarioPrincipal = docCoordinacion.DocumentoConsignatario.find(dc => dc.es_principal);
+            if (!consignatarioPrincipal) {
+                throw new BadRequestException('El documento de coordinación no tiene un consignatario principal asignado');
+            }
+            const id_consignatario = consignatarioPrincipal.consignatario.id;
 
-            // Si existe una guía hija para esta combinación, actualizar si es necesario
+            // Buscar una guía hija existente según las reglas de asignación configuradas
+            const guiaHijaExistente = await this.numeracionService.buscarGuiaExistente(
+                id_finca,
+                id_guia_madre,
+                id_consignatario,
+                id_producto,
+                REGLA_ASIGNACION_DEFAULT
+            );
+
+            // Si existe una guía hija para esta combinación específica, se usa la misma numeración
             if (guiaHijaExistente) {
-                // Si el documento de coordinación es diferente, actualizar
-                const dataToUpdate: any = {};
-
+                // Verificar si corresponde al mismo documento de coordinación
                 if (guiaHijaExistente.id_documento_coordinacion !== id_documento_coordinacion) {
-                    dataToUpdate.id_documento_coordinacion = id_documento_coordinacion;
-                }
+                    // Actualizar la guía hija para asociarla al nuevo documento de coordinación
+                    const dataToUpdate: any = {
+                        id_documento_coordinacion,
+                        updatedAt: new Date()
+                    };
 
-                // Actualizar campos adicionales si se proporcionan
-                if (asignarGuiaHijaDto?.id_producto) dataToUpdate.id_producto = asignarGuiaHijaDto.id_producto;
-                if (asignarGuiaHijaDto?.fulls !== undefined) dataToUpdate.fulls = asignarGuiaHijaDto.fulls;
-                if (asignarGuiaHijaDto?.pcs !== undefined) dataToUpdate.pcs = asignarGuiaHijaDto.pcs;
-                if (asignarGuiaHijaDto?.kgs !== undefined) dataToUpdate.kgs = asignarGuiaHijaDto.kgs;
-                if (asignarGuiaHijaDto?.stems !== undefined) dataToUpdate.stems = asignarGuiaHijaDto.stems;
+                    // Actualizar campos adicionales si se proporcionan
+                    if (asignarGuiaHijaDto?.fulls !== undefined) dataToUpdate.fulls = asignarGuiaHijaDto.fulls;
+                    if (asignarGuiaHijaDto?.pcs !== undefined) dataToUpdate.pcs = asignarGuiaHijaDto.pcs;
+                    if (asignarGuiaHijaDto?.kgs !== undefined) dataToUpdate.kgs = asignarGuiaHijaDto.kgs;
+                    if (asignarGuiaHijaDto?.stems !== undefined) dataToUpdate.stems = asignarGuiaHijaDto.stems;
 
-                // Solo actualizar si hay cambios
-                if (Object.keys(dataToUpdate).length > 0) {
-                    dataToUpdate.updatedAt = new Date();
                     return this.guiaHijaRepository.update(guiaHijaExistente.id, dataToUpdate);
                 }
 
                 return guiaHijaExistente;
             }
 
-            // Crear nueva guía hija
+            // Si no existe guía para esta combinación, generar un nuevo número de guía
             const anioActual = new Date().getFullYear();
-            const ultimaGuia = await this.guiaHijaRepository.getLastByYear(anioActual);
-            const nuevoSecuencial = ultimaGuia ? ultimaGuia.secuencial + 1 : 1;
-            const numeroGuiaHija = FormatoGuiasUtils.formatearNumeroGuiaHija(anioActual, nuevoSecuencial);
+
+            // Generar el número de guía hija usando el servicio de numeración
+            const numeroGuiaHija = await this.numeracionService.generarNumeroGuiaHija({
+                id_finca,
+                id_guia_madre,
+                id_consignatario,
+                id_producto,
+                formato: FORMATO_GUIA_HIJA
+            });
+
+            // Extraer los componentes del número de guía
+            const guiaComponents = this.numeracionService.parseNumeroGuiaHija(numeroGuiaHija);
+            let nuevoSecuencial = 1;
+
+            // Si el formato incluye un secuencial, usarlo
+            if (guiaComponents.secuencial) {
+                nuevoSecuencial = guiaComponents.secuencial;
+            } else {
+                // Si no hay secuencial en el formato, generar uno
+                const ultimaGuia = await this.guiaHijaRepository.getLastByYear(anioActual);
+                nuevoSecuencial = ultimaGuia ? ultimaGuia.secuencial + 1 : 1;
+            }
 
             // Obtener estado inicial para guía hija
             const estadoInicial = await this.guiaHijaRepository.findEstadoInicial();
@@ -144,6 +188,7 @@ export class GuiaHijaCrudService {
                 id_documento_coordinacion,
                 id_guia_madre,
                 id_finca,
+                id_producto,
                 id_estado_actual: estadoInicial.id,
                 numero_guia_hija: numeroGuiaHija,
                 anio: anioActual,
@@ -153,7 +198,6 @@ export class GuiaHijaCrudService {
             };
 
             // Añadir campos adicionales si se proporcionan
-            if (asignarGuiaHijaDto?.id_producto) createData.id_producto = asignarGuiaHijaDto.id_producto;
             if (asignarGuiaHijaDto?.fulls !== undefined) createData.fulls = asignarGuiaHijaDto.fulls;
             if (asignarGuiaHijaDto?.pcs !== undefined) createData.pcs = asignarGuiaHijaDto.pcs;
             if (asignarGuiaHijaDto?.kgs !== undefined) createData.kgs = asignarGuiaHijaDto.kgs;

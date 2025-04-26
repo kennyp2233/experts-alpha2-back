@@ -76,20 +76,26 @@ export class ConsignatariosService {
                     },
                 },
                 transmision: true,
-                documentosCoordinacion: {
-                    select: {
-                        id: true,
-                        fecha_vuelo: true,
-                        guia_madre: {
+                DocumentoConsignatario: {
+                    include: {
+                        documento_coordinacion: {
                             select: {
-                                prefijo: true,
-                                secuencial: true,
+                                id: true,
+                                fecha_vuelo: true,
+                                guia_madre: {
+                                    select: {
+                                        prefijo: true,
+                                        secuencial: true,
+                                    },
+                                },
                             },
                         },
                     },
-                    take: 5, // Limitar a los últimos 5 documentos
+                    take: 5,
                     orderBy: {
-                        fecha_vuelo: 'desc',
+                        documento_coordinacion: {
+                            fecha_vuelo: 'desc',
+                        },
                     },
                 },
             },
@@ -290,7 +296,7 @@ export class ConsignatariosService {
         await this.findOne(id);
 
         // Verificar si tiene documentos de coordinación
-        const docsCount = await this.prisma.documentoCoordinacion.count({
+        const docsCount = await this.prisma.documentoConsignatario.count({
             where: { id_consignatario: id },
         });
 

@@ -31,6 +31,7 @@ import { DocumentoCoordinacionEstadoService } from './services/documento-coordin
 // Servicios especializados - GuiaHija
 import { GuiaHijaCrudService } from './services/guia-hija/guia-hija-crud.service';
 import { GuiaHijaEstadoService } from './services/guia-hija/guia-hija-estado.service';
+import { GuiaHijaNumeracionService } from './services/guia-hija/guia-hija-numeracion.service';
 
 // Servicios de dominio
 import { TransicionEstadoService } from './domain/workflow/transicion-estado.service';
@@ -82,6 +83,7 @@ import { WorkflowEventsListener } from './listeners/workflow-events.listener';
         // Servicios especializados - GuiaHija
         GuiaHijaCrudService,
         GuiaHijaEstadoService,
+        GuiaHijaNumeracionService,
 
         // Servicios de dominio
         TransicionEstadoService,
