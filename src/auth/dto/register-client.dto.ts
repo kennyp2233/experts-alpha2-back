@@ -21,7 +21,6 @@ export class RegisterClientDto {
 
     @IsString()
     @IsNotEmpty()
-    @IsPhoneNumber()
     telefono: string;
 
     @IsString()
