@@ -284,7 +284,7 @@ model Cliente {
 model Finca {
   id                        Int      @id @default(autoincrement())
   nombre_finca              String
-  tag                       String
+  tag                       String?
   ruc_finca                 String?
   tipo_documento            String
   genera_guias_certificadas Boolean?

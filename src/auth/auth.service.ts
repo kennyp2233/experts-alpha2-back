@@ -188,13 +188,12 @@ export class AuthService {
             where: {
                 OR: [
                     { ruc_finca: registerDto.ruc_finca },
-                    { tag: registerDto.tag },
                 ],
             },
         });
 
         if (existingFinca) {
-            throw new ConflictException('La finca ya está registrada con ese RUC o tag');
+            throw new ConflictException('La finca ya está registrada con ese RUC');
         }
 
         // Hashear la contraseña
@@ -265,7 +264,7 @@ export class AuthService {
                     },
                 });
             }
-
+            console.log('Registro de finca', newUser)
             return { user: newUser, finca: newFinca };
         });
 

@@ -20,7 +20,7 @@ export class RegisterFarmDto {
     nombre_finca: string;
 
     @IsString()
-    @IsNotEmpty()
+    @IsOptional()
     tag: string;
 
     @IsString()
@@ -28,7 +28,7 @@ export class RegisterFarmDto {
     ruc_finca: string;
 
     @IsString()
-    @IsNotEmpty()
+    @IsOptional()
     tipo_documento: string;
 
     @IsBoolean()
@@ -36,12 +36,12 @@ export class RegisterFarmDto {
     genera_guias_certificadas?: boolean;
 
     @IsString()
-    @IsNotEmpty()
+    @IsOptional()
     @IsPhoneNumber()
     i_general_telefono: string;
 
     @IsEmail()
-    @IsNotEmpty()
+    @IsOptional()
     i_general_email: string;
 
     @IsString()
