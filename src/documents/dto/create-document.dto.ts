@@ -2,10 +2,7 @@
 import { IsNotEmpty, IsInt, IsString, IsOptional } from 'class-validator';
 
 export class CreateDocumentoFincaDto {
-  @IsInt()
-  @IsNotEmpty()
-  id_finca: number;
-
+  // Remove the id_finca field as it will be retrieved from user metadata
   @IsInt()
   @IsNotEmpty()
   id_tipo_documento: number;

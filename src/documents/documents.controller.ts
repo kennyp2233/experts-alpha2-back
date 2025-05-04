@@ -26,9 +26,10 @@ export class DocumentsController {
     constructor(private readonly documentsService: DocumentsService) { }
 
     @Post()
-    @Roles('FINCA', 'ADMIN')
-    async createDocument(@Body() createDocDto: CreateDocumentoFincaDto) {
-        return this.documentsService.createDocument(createDocDto);
+    @Roles('FINCA')
+    async createDocument(@Body() createDocDto: CreateDocumentoFincaDto, @Request() req) {
+        // The service will extract farm ID from user metadata
+        return this.documentsService.createDocument(createDocDto, req.user.id);
     }
 
     @Post('upload')
@@ -64,9 +65,17 @@ export class DocumentsController {
         return this.documentsService.getPendingDocuments();
     }
 
+    @Get('my-documents')
+    @Roles('FINCA')
+    async getMyDocuments(@Request() req) {
+        // New endpoint to get documents for the current user's farm
+        return this.documentsService.getUserFarmDocuments(req.user.id);
+    }
+
     @Get('finca/:id')
-    @Roles('FINCA', 'ADMIN')
+    @Roles('ADMIN')
     async getFincaDocuments(@Param('id', ParseIntPipe) fincaId: number) {
+        // Kept for admin access to any farm's documents
         return this.documentsService.getFincaDocuments(fincaId);
     }
 

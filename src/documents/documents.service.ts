@@ -25,14 +25,35 @@ export class DocumentsService {
         }
     }
 
-    async createDocument(dto: CreateDocumentoFincaDto) {
+    // Helper method to get farm ID from user ID
+    private async getFarmIdFromUserId(userId: string): Promise<number> {
+        const userRole = await this.prisma.usuarioRol.findFirst({
+            where: {
+                id_usuario: userId,
+                rol: {
+                    nombre: 'FINCA',
+                },
+            },
+        });
+
+        if (!userRole || !userRole.metadata || !userRole.metadata['id_finca']) {
+            throw new ForbiddenException('No se encontró una finca asociada a este usuario');
+        }
+
+        return userRole.metadata['id_finca'];
+    }
+
+    async createDocument(dto: CreateDocumentoFincaDto, userId: string) {
+        // Get farm ID from user metadata
+        const fincaId = await this.getFarmIdFromUserId(userId);
+
         // Verificar si la finca existe
         const finca = await this.prisma.finca.findUnique({
-            where: { id: dto.id_finca },
+            where: { id: fincaId },
         });
 
         if (!finca) {
-            throw new NotFoundException(`Finca con ID ${dto.id_finca} no encontrada`);
+            throw new NotFoundException(`Finca con ID ${fincaId} no encontrada`);
         }
 
         // Verificar si el tipo de documento existe
@@ -44,10 +65,22 @@ export class DocumentsService {
             throw new NotFoundException(`Tipo de documento con ID ${dto.id_tipo_documento} no encontrado`);
         }
 
+        // Verificar si ya existe un documento de este tipo para esta finca
+        const existingDoc = await this.prisma.documentoFinca.findFirst({
+            where: {
+                id_finca: fincaId,
+                id_tipo_documento: dto.id_tipo_documento,
+            },
+        });
+
+        if (existingDoc) {
+            throw new BadRequestException('Ya existe un documento de este tipo para esta finca');
+        }
+
         // Crear el documento
         const documento = await this.prisma.documentoFinca.create({
             data: {
-                id_finca: dto.id_finca,
+                id_finca: fincaId,
                 id_tipo_documento: dto.id_tipo_documento,
                 comentario: dto.comentario,
             },
@@ -72,21 +105,10 @@ export class DocumentsService {
             throw new NotFoundException(`Documento con ID ${dto.id_documento} no encontrado`);
         }
 
-        // Verificar que el usuario tiene permiso para subir al documento (es de su finca)
-        const userRol = await this.prisma.usuarioRol.findFirst({
-            where: {
-                id_usuario: userId,
-                rol: {
-                    nombre: 'FINCA',
-                },
-                metadata: {
-                    path: ['id_finca'],
-                    equals: documento.id_finca,
-                },
-            },
-        });
+        // Get farm ID from user metadata and verify it matches the document's farm
+        const fincaId = await this.getFarmIdFromUserId(userId);
 
-        if (!userRol) {
+        if (documento.id_finca !== fincaId) {
             throw new ForbiddenException('No tienes permiso para subir documentos a esta finca');
         }
 
@@ -131,6 +153,7 @@ export class DocumentsService {
     }
 
     async reviewDocument(dto: ReviewDocumentoFincaDto, userId: string) {
+        // No changes needed here as this is an admin function
         // Verificar si el documento existe
         const documento = await this.prisma.documentoFinca.findUnique({
             where: { id: dto.id },
@@ -247,6 +270,12 @@ export class DocumentsService {
         });
 
         return documents;
+    }
+
+    // New method to get documents for the current user's farm
+    async getUserFarmDocuments(userId: string) {
+        const fincaId = await this.getFarmIdFromUserId(userId);
+        return this.getFincaDocuments(fincaId);
     }
 
     async getFincaDocuments(fincaId: number) {
