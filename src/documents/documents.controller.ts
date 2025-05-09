@@ -9,7 +9,8 @@ import {
     ParseIntPipe,
     UploadedFile,
     UseInterceptors,
-    BadRequestException
+    BadRequestException,
+    Patch
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -19,6 +20,7 @@ import { DocumentsService } from './documents.service';
 import { CreateDocumentoFincaDto } from './dto/create-document.dto';
 import { ReviewDocumentoFincaDto } from './dto/review-document.dto';
 import { UploadDocumentoFileDto } from './dto/upload-document-file.dto';
+import { UpdateDocumentoFincaDto } from './dto/update-document.dto';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -57,6 +59,26 @@ export class DocumentsController {
         @Request() req,
     ) {
         return this.documentsService.reviewDocument(reviewDto, req.user.id);
+    }
+
+    @Patch(':id')
+    @UseInterceptors(FileInterceptor('file', {
+        limits: {
+            fileSize: 5 * 1024 * 1024, // 5MB
+        },
+    }))
+    @Roles('FINCA')
+    async updateDocument(
+        @Param('id') id: string,
+        @Body() updateDto: UpdateDocumentoFincaDto,
+        @UploadedFile() file: Express.Multer.File,
+        @Request() req,
+    ) {
+        updateDto.id = id;
+        if (!file) {
+            throw new BadRequestException('No se ha proporcionado ningún archivo');
+        }
+        return this.documentsService.updateDocument(updateDto, file, req.user.id);
     }
 
     @Get('pending')

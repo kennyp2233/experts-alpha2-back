@@ -15,13 +15,19 @@ export class RolesGuard implements CanActivate {
     ]);
 
     if (!requiredRoles) {
-      return true;
+      return true; // No roles required, access granted
     }
 
     const { user } = context.switchToHttp().getRequest();
-    
+
+    // Check if user exists and has roles
+    if (!user || !user.roles) {
+      return false; // User or user roles not found, access denied
+    }
+
+    // Check if the user has at least one of the required roles AND that role's status is 'APROBADO'
     return requiredRoles.some(role =>
-      user.roles?.some(userRole => userRole.nombre === role)
+      user.roles.some(userRole => userRole.nombre === role && userRole.estado === 'APROBADO')
     );
   }
 }

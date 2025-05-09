@@ -37,11 +37,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // Transformar la información de roles para tener un formato más usable
     const roles = user.asignacionRoles
-      .filter(ur => ur.estado === 'APROBADO')
-      .map(ur => ({ 
-        id: ur.id_rol, 
+      .filter(ur => ur.estado === 'APROBADO' || ur.estado === 'PENDIENTE')
+      .map(ur => ({
+        id: ur.id_rol,
         nombre: ur.rol.nombre,
-        metadata: ur.metadata 
+        estado: ur.estado,
+        metadata: ur.metadata
       }));
 
     return {

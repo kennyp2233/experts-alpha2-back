@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
+import { UpdateDocumentoFincaDto } from './dto/update-document.dto';
 
 @Injectable()
 export class DocumentsService {
@@ -321,5 +322,72 @@ export class DocumentsService {
         });
 
         return documentTypes;
+    }
+
+    async updateDocument(dto: UpdateDocumentoFincaDto, file: Express.Multer.File, userId: string) {
+        // Verificar si el documento existe
+        const documento = await this.prisma.documentoFinca.findUnique({
+            where: { id: dto.id },
+            include: {
+                finca: true,
+            },
+        });
+
+        if (!documento) {
+            throw new NotFoundException(`Documento con ID ${dto.id} no encontrado`);
+        }
+
+        // Get farm ID from user metadata and verify it matches the document's farm
+        const fincaId = await this.getFarmIdFromUserId(userId);
+
+        if (documento.id_finca !== fincaId) {
+            throw new ForbiddenException('No tienes permiso para modificar documentos de esta finca');
+        }
+
+        // Verificar que el documento no está en estado APROBADO
+        if (documento.estado === 'APROBADO') {
+            throw new BadRequestException('No se pueden modificar documentos ya aprobados');
+        }
+
+        // Si hay un archivo existente, eliminarlo
+        if (documento.ruta_archivo && fs.existsSync(documento.ruta_archivo)) {
+            fs.unlinkSync(documento.ruta_archivo);
+        }
+
+        // Crear nombre de archivo único
+        const fileExt = path.extname(file.originalname);
+        const fileName = `${randomUUID()}${fileExt}`;
+        const fincaDir = path.join(this.uploadsDir, `finca_${documento.id_finca}`);
+
+        // Crear directorio para la finca si no existe
+        if (!fs.existsSync(fincaDir)) {
+            fs.mkdirSync(fincaDir, { recursive: true });
+        }
+
+        // Ruta completa donde se guardará el archivo
+        const filePath = path.join(fincaDir, fileName);
+        const relativePath = path.relative(process.cwd(), filePath);
+
+        // Escribir el archivo
+        fs.writeFileSync(filePath, file.buffer);
+
+        // Actualizar el documento con la información del archivo
+        const updatedDoc = await this.prisma.documentoFinca.update({
+            where: { id: dto.id },
+            data: {
+                ruta_archivo: relativePath,
+                nombre_archivo: file.originalname,
+                tamano_archivo: file.size,
+                tipo_mime: file.mimetype,
+                fecha_subida: new Date(),
+                estado: 'PENDIENTE',
+                comentario: dto.comentario || documento.comentario,
+            },
+        });
+
+        return {
+            message: 'Documento actualizado exitosamente',
+            documento: updatedDoc,
+        };
     }
 }
