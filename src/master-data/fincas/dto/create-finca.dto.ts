@@ -1,4 +1,4 @@
-// src/master-data/fincas/dto/finca.dto.ts
+// src/master-data/fincas/dto/create-finca.dto.ts
 import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
 
 export class CreateFincaDto {
@@ -62,16 +62,4 @@ export class CreateFincaDto {
     @IsBoolean()
     @IsOptional()
     activo?: boolean = true;
-}
-
-export class UpdateFincaDto extends CreateFincaDto { }
-
-export class AsignarChoferDto {
-    @IsString()
-    id_chofer: number;
-}
-
-export class AsignarProductoDto {
-    @IsString()
-    id_producto: number;
 }
