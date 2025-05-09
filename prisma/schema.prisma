@@ -287,7 +287,7 @@ model Finca {
   tag                       String?
   ruc_finca                 String?
   tipo_documento            String
-  genera_guias_certificadas Boolean?
+  genera_guias_certificadas Boolean? @default(false)
   i_general_telefono        String?
   i_general_email           String?
   i_general_ciudad          String?

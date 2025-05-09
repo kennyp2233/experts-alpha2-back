@@ -183,7 +183,7 @@ export class AuthService {
             throw new ConflictException('El correo electrónico o nombre de usuario ya está en uso');
         }
 
-        // Verificar si la finca ya existe (por RUC o tag)
+        // Verificar si la finca ya existe (por RUC)
         const existingFinca = await this.prisma.finca.findFirst({
             where: {
                 OR: [
@@ -199,7 +199,7 @@ export class AuthService {
         // Hashear la contraseña
         const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-        // Transacción para crear usuario y finca
+        // Transacción para crear usuario y finca con los nuevos campos
         const result = await this.prisma.$transaction(async (prisma) => {
             // Crear el usuario
             const newUser = await prisma.usuario.create({
@@ -210,7 +210,7 @@ export class AuthService {
                 },
             });
 
-            // Crear finca asociada
+            // Crear finca asociada con todos los campos disponibles
             const newFinca = await prisma.finca.create({
                 data: {
                     nombre_finca: registerDto.nombre_finca,
@@ -225,6 +225,10 @@ export class AuthService {
                     i_general_pais: registerDto.i_general_pais,
                     i_general_cod_sesa: registerDto.i_general_cod_sesa,
                     i_general_cod_pais: registerDto.i_general_cod_pais,
+                    // Nuevos campos
+                    a_nombre: registerDto.a_nombre,
+                    a_codigo: registerDto.a_codigo,
+                    a_direccion: registerDto.a_direccion,
                 },
             });
 
@@ -249,6 +253,30 @@ export class AuthService {
                 },
             });
 
+            // Asociar productos si se proporcionaron
+            if (registerDto.productos && registerDto.productos.length > 0) {
+                for (const producto of registerDto.productos) {
+                    await prisma.fincaProducto.create({
+                        data: {
+                            id_finca: newFinca.id,
+                            id_producto: producto.id_producto,
+                        },
+                    });
+                }
+            }
+
+            // Asociar choferes si se proporcionaron
+            if (registerDto.choferes && registerDto.choferes.length > 0) {
+                for (const chofer of registerDto.choferes) {
+                    await prisma.fincaChofer.create({
+                        data: {
+                            id_finca: newFinca.id,
+                            id_chofer: chofer.id_chofer,
+                        },
+                    });
+                }
+            }
+
             // Buscar tipos de documentos obligatorios para fincas
             const documentosObligatorios = await prisma.tipoDocumentoFinca.findMany({
                 where: { es_obligatorio: true },
@@ -264,7 +292,7 @@ export class AuthService {
                     },
                 });
             }
-            console.log('Registro de finca', newUser)
+
             return { user: newUser, finca: newFinca };
         });
 
@@ -276,7 +304,7 @@ export class AuthService {
         };
 
         return {
-            message: 'Finca registrada exitosamente. Por favor suba los documentos requeridos para la verificación',
+            message: 'Finca registrada exitosamente. Por favor complete los documentos requeridos para la verificación',
             user: {
                 id: result.user.id,
                 email: result.user.email,
@@ -290,6 +318,7 @@ export class AuthService {
             access_token: this.jwtService.sign(payload),
         };
     }
+
 
     async getProfile(userId: string) {
         const user = await this.prisma.usuario.findUnique({

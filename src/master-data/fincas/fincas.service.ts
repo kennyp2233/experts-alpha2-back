@@ -194,7 +194,7 @@ export class FincasService {
 
     async update(id: number, updateFincaDto: UpdateFincaDto) {
         // Verificar si existe
-        await this.findOne(id);
+        const finca = await this.findOne(id);
 
         // Verificar que el tag es único (si se está cambiando)
         const fincaToUpdate = await this.prisma.finca.findUnique({
@@ -219,6 +219,45 @@ export class FincasService {
 
             if (existingFincaRuc) {
                 throw new BadRequestException(`Ya existe una finca con el RUC ${updateFincaDto.ruc_finca}`);
+            }
+        }
+
+        // Verificar si hay cambios que requieren reaprobación
+        // Obtener todos los roles de usuario con esta finca
+        const usuariosRoles = await this.prisma.usuarioRol.findMany({
+            where: {
+                metadata: {
+                    path: ['id_finca'],
+                    equals: id
+                },
+                rol: {
+                    nombre: 'FINCA'
+                },
+                estado: 'APROBADO'
+            }
+        });
+
+        // Si hay usuarios aprobados y se cambian campos críticos, volver a pendiente
+        if (usuariosRoles.length > 0 && fincaToUpdate) {
+            const camposRestringidos = ['ruc_finca', 'i_general_cod_sesa'];
+            let requiereReaprobacion = false;
+
+            for (const campo of camposRestringidos) {
+                if (updateFincaDto[campo] !== undefined &&
+                    updateFincaDto[campo] !== fincaToUpdate[campo]) {
+                    requiereReaprobacion = true;
+                    break;
+                }
+            }
+
+            if (requiereReaprobacion) {
+                // Cambiar el estado de todos los roles a PENDIENTE
+                for (const rol of usuariosRoles) {
+                    await this.prisma.usuarioRol.update({
+                        where: { id: rol.id },
+                        data: { estado: 'PENDIENTE' }
+                    });
+                }
             }
         }
 
@@ -427,5 +466,130 @@ export class FincasService {
             tipos_pendientes: tiposPendientes,
             documentos_aprobados: documentosFinca,
         };
+    }
+
+    async validateRegistrationCompletion(fincaId: number) {
+        // Verificar si la finca existe
+        const finca = await this.prisma.finca.findUnique({
+            where: { id: fincaId },
+            include: {
+                documentos: {
+                    include: {
+                        tipoDocumento: true,
+                    },
+                },
+            },
+        });
+
+        if (!finca) {
+            throw new NotFoundException(`Finca con ID ${fincaId} no encontrada`);
+        }
+
+        // Campos obligatorios de la finca
+        const camposObligatorios = [
+            'nombre_finca',
+            'ruc_finca',
+            'i_general_telefono',
+            'i_general_email',
+            'i_general_ciudad',
+            'i_general_provincia',
+            'i_general_pais',
+        ];
+
+        const camposFaltantes = camposObligatorios.filter(campo => !finca[campo]);
+
+        // Documentos obligatorios sin subir
+        const documentosSinSubir = finca.documentos.filter(
+            doc => doc.tipoDocumento.es_obligatorio && !doc.ruta_archivo
+        );
+
+        if (camposFaltantes.length > 0 || documentosSinSubir.length > 0) {
+            return {
+                registroCompleto: false,
+                camposFaltantes,
+                documentosFaltantes: documentosSinSubir.map(doc => doc.tipoDocumento.nombre),
+                mensaje: 'El registro de la finca está incompleto'
+            };
+        }
+
+        return {
+            registroCompleto: true,
+            mensaje: 'El registro de la finca está completo'
+        };
+    }
+
+    async getPendingFarms() {
+        // Buscar todos los roles de finca pendientes
+        const rolesPendientes = await this.prisma.usuarioRol.findMany({
+            where: {
+                rol: {
+                    nombre: 'FINCA',
+                },
+                estado: 'PENDIENTE',
+            },
+            include: {
+                usuario: {
+                    select: {
+                        id: true,
+                        usuario: true,
+                        email: true,
+                        createdAt: true,
+                    },
+                },
+            },
+        });
+
+        // Obtener todas las fincas asociadas a esos roles
+        const fincasPendientes = await Promise.all(
+            rolesPendientes.map(async (rol) => {
+                if (!rol.metadata || !rol.metadata['id_finca']) {
+                    return null;
+                }
+
+                const fincaId = rol.metadata['id_finca'];
+
+                const finca = await this.prisma.finca.findUnique({
+                    where: { id: fincaId },
+                    include: {
+                        documentos: {
+                            include: {
+                                tipoDocumento: true,
+                            },
+                        },
+                    },
+                });
+
+                if (!finca) {
+                    return null;
+                }
+
+                // Verificar si los documentos obligatorios están completos
+                const documentosObligatorios = finca.documentos.filter(
+                    doc => doc.tipoDocumento.es_obligatorio
+                );
+
+                const documentosCompletados = documentosObligatorios.filter(
+                    doc => doc.ruta_archivo
+                );
+
+                const registroCompleto = documentosObligatorios.length === documentosCompletados.length;
+
+                return {
+                    id_rol: rol.id,
+                    usuario: rol.usuario,
+                    finca: finca,
+                    fecha_registro: rol.createdAt,
+                    documentos_obligatorios: documentosObligatorios.length,
+                    documentos_completados: documentosCompletados.length,
+                    registro_completo: registroCompleto,
+                    documentos: finca.documentos,
+                };
+            })
+        );
+
+        // Filtrar nulls y ordenar por fecha de registro
+        return fincasPendientes
+            .filter(finca => finca !== null)
+            .sort((a, b) => a.fecha_registro.getTime() - b.fecha_registro.getTime());
     }
 }

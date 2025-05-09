@@ -63,6 +63,32 @@ export class FincasController {
         return this.fincasService.create(createFincaDto);
     }
 
+    @Get('required-fields')
+    async getRequiredFields() {
+        return {
+            campos_obligatorios: [
+                { campo: 'nombre_finca', descripcion: 'Nombre de la finca', requiere_documento: false },
+                { campo: 'ruc_finca', descripcion: 'RUC de la finca', requiere_documento: true, tipo_documento: 'RUC' },
+                { campo: 'i_general_telefono', descripcion: 'Teléfono de contacto', requiere_documento: false },
+                { campo: 'i_general_email', descripcion: 'Email de contacto', requiere_documento: false },
+                { campo: 'i_general_ciudad', descripcion: 'Ciudad', requiere_documento: false },
+                { campo: 'i_general_provincia', descripcion: 'Provincia', requiere_documento: false },
+                { campo: 'i_general_pais', descripcion: 'País', requiere_documento: false },
+                { campo: 'i_general_cod_sesa', descripcion: 'Código SESA', requiere_documento: true, tipo_documento: 'Certificado Fitosanitario' },
+            ],
+            documentos_obligatorios: [
+                { nombre: 'RUC', descripcion: 'Registro Único de Contribuyentes' },
+                { nombre: 'Certificado Fitosanitario', descripcion: 'Certificado emitido por la autoridad fitosanitaria' },
+            ]
+        };
+    }
+
+    @Get('pending')
+    @Roles('ADMIN')
+    async getPendingFarms() {
+        return this.fincasService.getPendingFarms();
+    }
+
     @Patch(':id')
     @Roles('ADMIN')
     async update(
@@ -129,4 +155,11 @@ export class FincasController {
     async verificarDocumentos(@Param('id', ParseIntPipe) id: number) {
         return this.fincasService.verificarDocumentos(id);
     }
+
+    @Get(':id/validate-registration')
+    async validateRegistration(@Param('id', ParseIntPipe) id: number) {
+        return this.fincasService.validateRegistrationCompletion(id);
+    }
+
+
 }
