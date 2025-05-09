@@ -16,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { AllowPending } from '../auth/decorators/allow-pending.decorator';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentoFincaDto } from './dto/create-document.dto';
 import { ReviewDocumentoFincaDto } from './dto/review-document.dto';
@@ -29,6 +30,7 @@ export class DocumentsController {
 
     @Post()
     @Roles('FINCA')
+    @AllowPending()
     async createDocument(@Body() createDocDto: CreateDocumentoFincaDto, @Request() req) {
         // The service will extract farm ID from user metadata
         return this.documentsService.createDocument(createDocDto, req.user.id);
@@ -41,6 +43,7 @@ export class DocumentsController {
         },
     }))
     @Roles('FINCA')
+    @AllowPending()
     async uploadDocumentFile(
         @Body() uploadDto: UploadDocumentoFileDto,
         @UploadedFile() file: Express.Multer.File,
@@ -68,6 +71,7 @@ export class DocumentsController {
         },
     }))
     @Roles('FINCA')
+    @AllowPending()
     async updateDocument(
         @Param('id') id: string,
         @Body() updateDto: UpdateDocumentoFincaDto,
@@ -89,6 +93,7 @@ export class DocumentsController {
 
     @Get('my-documents')
     @Roles('FINCA')
+    @AllowPending()
     async getMyDocuments(@Request() req) {
         // New endpoint to get documents for the current user's farm
         return this.documentsService.getUserFarmDocuments(req.user.id);
@@ -103,6 +108,7 @@ export class DocumentsController {
 
     @Get('types')
     @Roles('FINCA', 'ADMIN')
+    @AllowPending()
     async getRequiredDocumentTypes() {
         return this.documentsService.getRequiredDocumentTypes();
     }

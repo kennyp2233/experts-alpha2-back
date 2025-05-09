@@ -35,7 +35,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Usuario no autorizado');
     }
 
-    // Transformar la información de roles para tener un formato más usable
+    // Incluir TODOS los roles del usuario (tanto APROBADO como PENDIENTE)
+    // El RolesGuard se encargará de filtrar según sea necesario
     const roles = user.asignacionRoles
       .filter(ur => ur.estado === 'APROBADO' || ur.estado === 'PENDIENTE')
       .map(ur => ({

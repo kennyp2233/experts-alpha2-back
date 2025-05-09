@@ -9,6 +9,7 @@ import { FincasVerificationService } from '../services/fincas-verification.servi
 import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../auth/guards/roles.guard';
 import { Roles } from '../../../auth/decorators/roles.decorator';
+import { AllowPending } from '../../../auth/decorators/allow-pending.decorator';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 
 @ApiTags('Fincas - Verificación')
@@ -19,18 +20,20 @@ export class FincasVerificationController {
 
     @Get(':id/verificar-documentos')
     @Roles('ADMIN', 'FINCA')
+    @AllowPending()
     verificarDocumentos(@Param('id', ParseIntPipe) id: number) {
         return this.fincasVerificationService.verificarDocumentos(id);
     }
 
     @Get(':id/validar-registro')
     @Roles('ADMIN', 'FINCA')
+    @AllowPending()
     validateRegistrationCompletion(@Param('id', ParseIntPipe) id: number) {
         return this.fincasVerificationService.validateRegistrationCompletion(id);
     }
 
     @Get('pendientes')
-    @Roles('ADMIN', 'FINCA')
+    @Roles('ADMIN')
     getPendingFarms() {
         return this.fincasVerificationService.getPendingFarms();
     }

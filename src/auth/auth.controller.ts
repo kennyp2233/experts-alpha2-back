@@ -5,6 +5,7 @@ import { RegisterClientDto } from './dto/register-client.dto';
 import { RegisterFarmDto } from './dto/register-farm.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
+import { AllowPending } from './decorators/allow-pending.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -30,6 +31,7 @@ export class AuthController {
 
     @UseGuards(JwtAuthGuard)
     @Get('profile')
+    @AllowPending()  // Permitimos que usuarios con roles pendientes vean su perfil
     getProfile(@Request() req) {
         return this.authService.getProfile(req.user.id);
     }
