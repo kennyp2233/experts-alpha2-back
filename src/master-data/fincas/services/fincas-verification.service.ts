@@ -143,4 +143,114 @@ export class FincasVerificationService {
             };
         });
     }
+
+    async getFincasEnVerificacion(options: {
+        conDocumentos?: boolean;
+        estadoDocumentos?: string;
+    }) {
+        // Buscar roles de finca pendientes
+        const rolesPendientes = await this.prisma.usuarioRol.findMany({
+            where: {
+                rol: {
+                    nombre: 'FINCA'
+                },
+                estado: 'PENDIENTE'
+            },
+            include: {
+                usuario: {
+                    select: {
+                        id: true,
+                        usuario: true,
+                        email: true,
+                        createdAt: true
+                    }
+                },
+                rol: true
+            }
+        });
+
+        const resultado: any = [];
+
+        // Para cada rol pendiente, obtener la finca con sus documentos
+        for (const rol of rolesPendientes) {
+            const metadata = rol.metadata as any;
+            if (!metadata?.id_finca) continue;
+
+            // Obtener la finca con sus documentos
+            const finca = await this.prisma.finca.findUnique({
+                where: { id: metadata.id_finca },
+                include: {
+                    documentos: {
+                        include: {
+                            tipoDocumento: true
+                        }
+                    }
+                }
+            });
+
+            if (!finca) continue;
+
+            // Filtrar según opciones
+            if (options.conDocumentos && finca.documentos.length === 0) {
+                continue;
+            }
+
+            if (options.estadoDocumentos) {
+                // Comprobar si algún documento tiene el estado solicitado
+                const tieneDocumentoConEstado = finca.documentos.some(
+                    doc => doc.estado === options.estadoDocumentos
+                );
+
+                if (!tieneDocumentoConEstado) {
+                    continue;
+                }
+            }
+
+            // Calcular estadísticas de progreso
+            const tiposObligatorios = await this.prisma.tipoDocumentoFinca.findMany({
+                where: { es_obligatorio: true }
+            });
+
+            const totalRequeridos = tiposObligatorios.length;
+            const documentosSubidos = finca.documentos.length;
+            const documentosAprobados = finca.documentos.filter(doc => doc.estado === 'APROBADO').length;
+            const documentosRechazados = finca.documentos.filter(doc => doc.estado === 'RECHAZADO').length;
+
+            const porcentajeCompletado = totalRequeridos > 0
+                ? (documentosSubidos / totalRequeridos) * 100
+                : 0;
+
+            const porcentajeAprobado = documentosSubidos > 0
+                ? (documentosAprobados / documentosSubidos) * 100
+                : 0;
+
+            // Añadir al resultado
+            resultado.push({
+                finca: {
+                    ...finca,
+                    progreso_verificacion: {
+                        total_documentos_requeridos: totalRequeridos,
+                        documentos_subidos: documentosSubidos,
+                        documentos_aprobados: documentosAprobados,
+                        documentos_rechazados: documentosRechazados,
+                        porcentaje_completado: Math.round(porcentajeCompletado),
+                        porcentaje_aprobado: Math.round(porcentajeAprobado)
+                    }
+                },
+                usuario: rol.usuario,
+                rol_pendiente: rol
+            });
+        }
+
+        // Ordenar por fecha de creación (más reciente primero)
+        resultado.sort((a, b) =>
+            new Date(b.usuario.createdAt).getTime() -
+            new Date(a.usuario.createdAt).getTime()
+        );
+
+        return {
+            total: resultado.length,
+            fincas: resultado
+        };
+    }
 }

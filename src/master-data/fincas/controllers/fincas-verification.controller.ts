@@ -3,6 +3,7 @@ import {
     Get,
     Param,
     ParseIntPipe,
+    Query,
     UseGuards,
 } from '@nestjs/common';
 import { FincasVerificationService } from '../services/fincas-verification.service';
@@ -36,5 +37,18 @@ export class FincasVerificationController {
     @Roles('ADMIN')
     getPendingFarms() {
         return this.fincasVerificationService.getPendingFarms();
+    }
+
+    // En src/master-data/fincas/controllers/fincas-verification.controller.ts
+    @Get('en-verificacion')
+    @Roles('ADMIN')
+    getFincasEnVerificacion(
+        @Query('con_documentos') conDocumentos: boolean,
+        @Query('estado_documentos') estadoDocumentos: string
+    ) {
+        return this.fincasVerificationService.getFincasEnVerificacion({
+            conDocumentos,
+            estadoDocumentos
+        });
     }
 }

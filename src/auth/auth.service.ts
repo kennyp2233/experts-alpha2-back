@@ -188,6 +188,7 @@ export class AuthService {
             where: {
                 OR: [
                     { ruc_finca: registerDto.ruc_finca },
+                    { nombre_finca: registerDto.nombre_finca },
                 ],
             },
         });
